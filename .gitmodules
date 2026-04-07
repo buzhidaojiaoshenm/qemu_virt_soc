@@ -4,3 +4,6 @@
 [submodule "SCP-firmware"]
 	path = SCP-firmware
 	url = git@github.com:buzhidaojiaoshenm/SCP-firmware.git
+[submodule "toolchains/arm-none-eabi-gcc"]
+	path = toolchains/arm-none-eabi-gcc
+	url = git@github.com:buzhidaojiaoshenm/arm-none-eabi-gcc.git

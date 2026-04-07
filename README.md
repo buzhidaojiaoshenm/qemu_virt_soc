@@ -78,6 +78,24 @@ SCP-firmware:
   url:  git@github.com:buzhidaojiaoshenm/SCP-firmware.git
 ```
 
+The `qemu_virt_m7` SCP-firmware product expects the GNU Arm bare-metal
+toolchain to be available under:
+
+```text
+toolchains/arm-none-eabi-gcc/
+`-- bin/
+    |-- arm-none-eabi-gcc
+    |-- arm-none-eabi-g++
+    `-- arm-none-eabi-objcopy
+```
+
+If the toolchain is managed as a submodule, add it at that exact path:
+
+```bash
+git submodule add git@github.com:buzhidaojiaoshenm/arm-none-eabi-gcc.git toolchains/arm-none-eabi-gcc
+git commit -m "Add project-local Arm GNU toolchain submodule"
+```
+
 The top-level repository records the exact commit checked out for each
 submodule. When changing QEMU or SCP-firmware, commit the changes inside the
 submodule first, then commit the updated submodule pointer in the top-level
