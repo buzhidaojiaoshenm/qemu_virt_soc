@@ -1,6 +1,6 @@
 [submodule "qemu"]
 	path = qemu
-	url = https://gitlab.com/qemu-project/qemu.git
+	url = git@github.com:buzhidaojiaoshenm/qemu.git
 [submodule "SCP-firmware"]
 	path = SCP-firmware
-	url = git@git.gitlab.arm.com:firmware/SCP-firmware.git
+	url = git@github.com:buzhidaojiaoshenm/SCP-firmware.git
