@@ -85,8 +85,7 @@ run-ap: tfa qemu-check-aarch64
 	@$(RM) "$(TFA_LOG)"
 	@touch "$(TFA_LOG)"
 	@"$(XTERM)" $(XTERM_ARGS) -T "$(XTERM_AP_TITLE)" -e /bin/bash -lc '\
-		set -m; \
-		trap "if [ -n \"$$qemu_pid\" ]; then kill $$qemu_pid >/dev/null 2>&1 || true; wait $$qemu_pid >/dev/null 2>&1 || true; fi" EXIT HUP INT TERM; \
+		trap "jobs -pr | xargs -r kill >/dev/null 2>&1 || true; wait >/dev/null 2>&1 || true" EXIT HUP INT TERM; \
 		tail -n +1 -F "$(TFA_LOG)" & \
 		tail_pid=$$!; \
 		"$(QEMU_SYSTEM_AARCH64)" \
@@ -111,8 +110,7 @@ run-ap-baremetal: ap qemu-check-aarch64
 	@$(RM) "$(AP_LOG)"
 	@touch "$(AP_LOG)"
 	@"$(XTERM)" $(XTERM_ARGS) -T "$(XTERM_AP_BAREMETAL_TITLE)" -e /bin/bash -lc '\
-		set -m; \
-		trap "if [ -n \"$$qemu_pid\" ]; then kill $$qemu_pid >/dev/null 2>&1 || true; wait $$qemu_pid >/dev/null 2>&1 || true; fi" EXIT HUP INT TERM; \
+		trap "jobs -pr | xargs -r kill >/dev/null 2>&1 || true; wait >/dev/null 2>&1 || true" EXIT HUP INT TERM; \
 		tail -n +1 -F "$(AP_LOG)" & \
 		tail_pid=$$!; \
 		"$(QEMU_SYSTEM_AARCH64)" \
@@ -137,8 +135,7 @@ run-scp: scp qemu-check-arm
 	@$(RM) "$(SCP_LOG)"
 	@touch "$(SCP_LOG)"
 	@"$(XTERM)" $(XTERM_ARGS) -T "$(XTERM_SCP_TITLE)" -e /bin/bash -lc '\
-		set -m; \
-		trap "if [ -n \"$$qemu_pid\" ]; then kill $$qemu_pid >/dev/null 2>&1 || true; wait $$qemu_pid >/dev/null 2>&1 || true; fi" EXIT HUP INT TERM; \
+		trap "jobs -pr | xargs -r kill >/dev/null 2>&1 || true; wait >/dev/null 2>&1 || true" EXIT HUP INT TERM; \
 		tail -n +1 -F "$(SCP_LOG)" & \
 		tail_pid=$$!; \
 		"$(QEMU_SYSTEM_ARM)" \
@@ -163,8 +160,7 @@ run-demo: scp tfa qemu-check-arm qemu-check-aarch64
 	@$(RM) "$(BRIDGE_AP_SOCK)" "$(BRIDGE_SCP_SOCK)" "$(BRIDGE_SHM_PATH)" "$(DEMO_SCP_LOG)" "$(DEMO_AP_LOG)"
 	@touch "$(DEMO_SCP_LOG)" "$(DEMO_AP_LOG)"
 	@"$(XTERM)" $(XTERM_ARGS) -T "$(XTERM_SCP_TITLE)" -e /bin/bash -lc '\
-		set -m; \
-		trap "if [ -n \"$$qemu_pid\" ]; then kill $$qemu_pid >/dev/null 2>&1 || true; wait $$qemu_pid >/dev/null 2>&1 || true; fi" EXIT HUP INT TERM; \
+		trap "jobs -pr | xargs -r kill >/dev/null 2>&1 || true; wait >/dev/null 2>&1 || true" EXIT HUP INT TERM; \
 		tail -n +1 -F "$(DEMO_SCP_LOG)" & \
 		tail_pid=$$!; \
 		"$(QEMU_SYSTEM_ARM)" \
@@ -184,8 +180,7 @@ run-demo: scp tfa qemu-check-arm qemu-check-aarch64
 		exit $$status' & \
 	sleep 1; \
 	"$(XTERM)" $(XTERM_ARGS) -T "$(XTERM_AP_TITLE)" -e /bin/bash -lc '\
-		set -m; \
-		trap "if [ -n \"$$qemu_pid\" ]; then kill $$qemu_pid >/dev/null 2>&1 || true; wait $$qemu_pid >/dev/null 2>&1 || true; fi" EXIT HUP INT TERM; \
+		trap "jobs -pr | xargs -r kill >/dev/null 2>&1 || true; wait >/dev/null 2>&1 || true" EXIT HUP INT TERM; \
 		tail -n +1 -F "$(DEMO_AP_LOG)" & \
 		tail_pid=$$!; \
 		"$(QEMU_SYSTEM_AARCH64)" \
