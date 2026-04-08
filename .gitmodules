@@ -9,4 +9,4 @@
 	url = git@github.com:buzhidaojiaoshenm/arm-none-eabi-gcc.git
 [submodule "tf-a"]
 	path = tf-a
-	url = https://github.com/ARM-software/arm-trusted-firmware.git
+	url = git@github.com:buzhidaojiaoshenm/arm-trusted-firmware.git
