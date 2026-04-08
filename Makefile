@@ -41,6 +41,7 @@ BRIDGE_SCP_SOCK ?= /tmp/qemu_virt_soc.scp.sock
 QEMU_BUILD_DIR ?= $(CURDIR)/qemu/build
 QEMU_SYSTEM_ARM ?= $(QEMU_BUILD_DIR)/qemu-system-arm
 QEMU_SYSTEM_AARCH64 ?= $(QEMU_BUILD_DIR)/qemu-system-aarch64
+SCP_QEMU_MACHINE ?= qemu-scp-m7
 QEMU_AARCH64_MEMORY ?= 1024
 SCP_LOG ?= $(CURDIR)/build/scp/$(SCP_PRODUCT)/qemu.log
 
@@ -139,7 +140,7 @@ run-scp: scp qemu-check-arm
 		tail -n +1 -F "$(SCP_LOG)" & \
 		tail_pid=$$!; \
 		"$(QEMU_SYSTEM_ARM)" \
-			-M mps2-an500 \
+			-M "$(SCP_QEMU_MACHINE)" \
 			-cpu cortex-m7 \
 			-display none \
 			-monitor none \
@@ -164,7 +165,7 @@ run-demo: scp tfa qemu-check-arm qemu-check-aarch64
 		tail -n +1 -F "$(DEMO_SCP_LOG)" & \
 		tail_pid=$$!; \
 		"$(QEMU_SYSTEM_ARM)" \
-			-M mps2-an500 \
+			-M "$(SCP_QEMU_MACHINE)" \
 			-cpu cortex-m7 \
 			-display none \
 			-monitor none \
@@ -293,4 +294,5 @@ help:
 	@echo "  QEMU_BUILD_DIR=$(QEMU_BUILD_DIR)"
 	@echo "  QEMU_SYSTEM_ARM=$(QEMU_SYSTEM_ARM)"
 	@echo "  QEMU_SYSTEM_AARCH64=$(QEMU_SYSTEM_AARCH64)"
+	@echo "  SCP_QEMU_MACHINE=$(SCP_QEMU_MACHINE)"
 	@echo "  QEMU_AARCH64_MEMORY=$(QEMU_AARCH64_MEMORY)"
