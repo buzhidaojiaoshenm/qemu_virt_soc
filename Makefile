@@ -17,8 +17,16 @@ AP_CFLAGS ?= -O2 -g -ffreestanding -fno-builtin -mcpu=cortex-a53 -Wall -Wextra
 AP_LDFLAGS ?= -nostdlib -nostartfiles -Wl,-T,$(AP_DIR)/linker.ld -Wl,-Map,$(AP_BUILD_DIR)/ap_hello_aarch64.map
 AP_IMAGE ?= $(AP_BUILD_DIR)/ap_hello_aarch64.elf
 AP_BINARY ?= $(AP_BUILD_DIR)/ap_hello_aarch64.bin
-AP_UART_FIFO ?= $(AP_BUILD_DIR)/ap_hello_aarch64.uart.fifo
+AP_LOG ?= $(AP_BUILD_DIR)/ap_hello_aarch64.log
 AP_LOAD_ADDR ?= 0x60000000
+XTERM ?= xterm
+XTERM_ARGS ?=
+XTERM_SCP_TITLE ?= SCP-QEMU
+XTERM_AP_TITLE ?= AP-QEMU
+XTERM_AP_BAREMETAL_TITLE ?= AP-BAREMETAL-QEMU
+DEMO_BUILD_DIR ?= $(CURDIR)/build/demo
+DEMO_SCP_LOG ?= $(DEMO_BUILD_DIR)/scp.log
+DEMO_AP_LOG ?= $(DEMO_BUILD_DIR)/ap.log
 TFA_PLAT ?= qemu
 TFA_BUILD_TYPE ?= debug
 TFA_BUILD_DIR ?= $(TFA_DIR)/build/$(TFA_PLAT)/$(TFA_BUILD_TYPE)
@@ -26,15 +34,17 @@ TFA_BL1_IMAGE ?= $(TFA_BUILD_DIR)/bl1.bin
 TFA_FIP_IMAGE ?= $(TFA_BUILD_DIR)/fip.bin
 TFA_FLASH_IMAGE ?= $(TFA_BUILD_DIR)/flash.bin
 TFA_LOG_LEVEL ?= 40
-TFA_UART_FIFO ?= $(AP_BUILD_DIR)/tf_a.uart.fifo
+TFA_LOG ?= $(AP_BUILD_DIR)/tf_a.log
+BRIDGE_SHM_PATH ?= /tmp/qemu_virt_soc.scmi_bridge.shm
+BRIDGE_AP_SOCK ?= /tmp/qemu_virt_soc.ap.sock
+BRIDGE_SCP_SOCK ?= /tmp/qemu_virt_soc.scp.sock
 QEMU_BUILD_DIR ?= $(CURDIR)/qemu/build
 QEMU_SYSTEM_ARM ?= $(QEMU_BUILD_DIR)/qemu-system-arm
 QEMU_SYSTEM_AARCH64 ?= $(QEMU_BUILD_DIR)/qemu-system-aarch64
 QEMU_AARCH64_MEMORY ?= 1024
-QEMU_TIMEOUT ?= 5s
-QEMU_UART_FIFO ?= $(CURDIR)/build/scp/$(SCP_PRODUCT)/uart.fifo
+SCP_LOG ?= $(CURDIR)/build/scp/$(SCP_PRODUCT)/qemu.log
 
-.PHONY: all ap tfa scp run-ap run-ap-baremetal run-scp scp-clean ap-clean tfa-clean toolchain-check qemu-check-arm qemu-check-aarch64 ap-toolchain-check help
+.PHONY: all ap tfa scp run-ap run-ap-baremetal run-scp run-demo scp-clean ap-clean tfa-clean toolchain-check qemu-check-arm qemu-check-aarch64 ap-toolchain-check help
 
 all: ap tfa scp
 
@@ -70,65 +80,129 @@ scp: toolchain-check
 		firmware-$(SCP_FIRMWARE)
 
 run-ap: tfa qemu-check-aarch64
-	@echo "Running $(TFA_FLASH_IMAGE) with TF-A and BL33 $(AP_BINARY). UART output follows:"
-	@$(RM) "$(TFA_UART_FIFO)"
-	@mkfifo "$(TFA_UART_FIFO)"
-	@cat "$(TFA_UART_FIFO)" & cat_pid=$$!; \
-	status=0; \
-	timeout $(QEMU_TIMEOUT) $(QEMU_SYSTEM_AARCH64) \
-		-machine virt,secure=on \
-		-cpu cortex-a53 \
-		-m $(QEMU_AARCH64_MEMORY) \
-		-display none \
-		-monitor none \
-		-serial file:$(TFA_UART_FIFO) \
-		-bios $(TFA_FLASH_IMAGE) \
-		|| status=$$?; \
-	kill $$cat_pid >/dev/null 2>&1 || true; \
-	$(RM) "$(TFA_UART_FIFO)"; \
-	if [ "$$status" -ne 0 ] && [ "$$status" -ne 124 ]; then \
-		exit $$status; \
-	fi
+	@echo "Launching AP TF-A run in xterm. Close the xterm window to stop QEMU."
+	@mkdir -p "$(AP_BUILD_DIR)"
+	@$(RM) "$(TFA_LOG)"
+	@touch "$(TFA_LOG)"
+	@"$(XTERM)" $(XTERM_ARGS) -T "$(XTERM_AP_TITLE)" -e /bin/bash -lc '\
+		set -m; \
+		trap "if [ -n \"$$qemu_pid\" ]; then kill $$qemu_pid >/dev/null 2>&1 || true; wait $$qemu_pid >/dev/null 2>&1 || true; fi" EXIT HUP INT TERM; \
+		tail -n +1 -F "$(TFA_LOG)" & \
+		tail_pid=$$!; \
+		"$(QEMU_SYSTEM_AARCH64)" \
+			-machine virt,secure=on \
+			-cpu cortex-a53 \
+			-m $(QEMU_AARCH64_MEMORY) \
+			-display none \
+			-monitor none \
+			-serial file:"$(TFA_LOG)" \
+			-bios "$(TFA_FLASH_IMAGE)" & \
+		qemu_pid=$$!; \
+		wait $$qemu_pid; \
+		status=$$?; \
+		kill $$tail_pid >/dev/null 2>&1 || true; \
+		wait $$tail_pid >/dev/null 2>&1 || true; \
+		printf "\n[AP] QEMU exited with status %s\n" "$$status" >> "$(TFA_LOG)"; \
+		exit $$status' &
 
 run-ap-baremetal: ap qemu-check-aarch64
-	@echo "Running $(AP_IMAGE) on QEMU. UART output follows:"
-	@$(RM) "$(AP_UART_FIFO)"
-	@mkfifo "$(AP_UART_FIFO)"
-	@cat "$(AP_UART_FIFO)" & cat_pid=$$!; \
-	status=0; \
-	timeout $(QEMU_TIMEOUT) $(QEMU_SYSTEM_AARCH64) \
-		-machine virt \
-		-cpu cortex-a53 \
-		-m $(QEMU_AARCH64_MEMORY) \
-		-display none \
-		-monitor none \
-		-serial file:$(AP_UART_FIFO) \
-		-kernel $(AP_IMAGE) || status=$$?; \
-	kill $$cat_pid >/dev/null 2>&1 || true; \
-	$(RM) "$(AP_UART_FIFO)"; \
-	if [ "$$status" -ne 0 ] && [ "$$status" -ne 124 ]; then \
-		exit $$status; \
-	fi
+	@echo "Launching AP baremetal run in xterm. Close the xterm window to stop QEMU."
+	@mkdir -p "$(AP_BUILD_DIR)"
+	@$(RM) "$(AP_LOG)"
+	@touch "$(AP_LOG)"
+	@"$(XTERM)" $(XTERM_ARGS) -T "$(XTERM_AP_BAREMETAL_TITLE)" -e /bin/bash -lc '\
+		set -m; \
+		trap "if [ -n \"$$qemu_pid\" ]; then kill $$qemu_pid >/dev/null 2>&1 || true; wait $$qemu_pid >/dev/null 2>&1 || true; fi" EXIT HUP INT TERM; \
+		tail -n +1 -F "$(AP_LOG)" & \
+		tail_pid=$$!; \
+		"$(QEMU_SYSTEM_AARCH64)" \
+			-machine virt \
+			-cpu cortex-a53 \
+			-m $(QEMU_AARCH64_MEMORY) \
+			-display none \
+			-monitor none \
+			-serial file:"$(AP_LOG)" \
+			-kernel "$(AP_IMAGE)" & \
+		qemu_pid=$$!; \
+		wait $$qemu_pid; \
+		status=$$?; \
+		kill $$tail_pid >/dev/null 2>&1 || true; \
+		wait $$tail_pid >/dev/null 2>&1 || true; \
+		printf "\n[AP] QEMU exited with status %s\n" "$$status" >> "$(AP_LOG)"; \
+		exit $$status' &
 
 run-scp: scp qemu-check-arm
-	@echo "Running $(SCP_IMAGE) on QEMU. UART output follows:"
-	@$(RM) "$(QEMU_UART_FIFO)"
-	@mkfifo "$(QEMU_UART_FIFO)"
-	@cat "$(QEMU_UART_FIFO)" & cat_pid=$$!; \
-	status=0; \
-	timeout $(QEMU_TIMEOUT) $(QEMU_SYSTEM_ARM) \
-		-M mps2-an500 \
-		-cpu cortex-m7 \
-		-display none \
-		-monitor none \
-		-serial file:$(QEMU_UART_FIFO) \
-		-semihosting \
-		-kernel $(SCP_IMAGE) || status=$$?; \
-	kill $$cat_pid >/dev/null 2>&1 || true; \
-	$(RM) "$(QEMU_UART_FIFO)"; \
-	if [ "$$status" -ne 0 ] && [ "$$status" -ne 124 ]; then \
-		exit $$status; \
-	fi
+	@echo "Launching SCP run in xterm. Close the xterm window to stop QEMU."
+	@mkdir -p "$(dir $(SCP_LOG))"
+	@$(RM) "$(SCP_LOG)"
+	@touch "$(SCP_LOG)"
+	@"$(XTERM)" $(XTERM_ARGS) -T "$(XTERM_SCP_TITLE)" -e /bin/bash -lc '\
+		set -m; \
+		trap "if [ -n \"$$qemu_pid\" ]; then kill $$qemu_pid >/dev/null 2>&1 || true; wait $$qemu_pid >/dev/null 2>&1 || true; fi" EXIT HUP INT TERM; \
+		tail -n +1 -F "$(SCP_LOG)" & \
+		tail_pid=$$!; \
+		"$(QEMU_SYSTEM_ARM)" \
+			-M mps2-an500 \
+			-cpu cortex-m7 \
+			-display none \
+			-monitor none \
+			-serial file:"$(SCP_LOG)" \
+			-semihosting \
+			-kernel "$(SCP_IMAGE)" & \
+		qemu_pid=$$!; \
+		wait $$qemu_pid; \
+		status=$$?; \
+		kill $$tail_pid >/dev/null 2>&1 || true; \
+		wait $$tail_pid >/dev/null 2>&1 || true; \
+		printf "\n[SCP] QEMU exited with status %s\n" "$$status" >> "$(SCP_LOG)"; \
+		exit $$status' &
+
+run-demo: scp tfa qemu-check-arm qemu-check-aarch64
+	@echo "Launching separate xterm windows for SCP-side and AP-side QEMU logs."
+	@mkdir -p "$(DEMO_BUILD_DIR)"
+	@$(RM) "$(BRIDGE_AP_SOCK)" "$(BRIDGE_SCP_SOCK)" "$(BRIDGE_SHM_PATH)" "$(DEMO_SCP_LOG)" "$(DEMO_AP_LOG)"
+	@touch "$(DEMO_SCP_LOG)" "$(DEMO_AP_LOG)"
+	@"$(XTERM)" $(XTERM_ARGS) -T "$(XTERM_SCP_TITLE)" -e /bin/bash -lc '\
+		set -m; \
+		trap "if [ -n \"$$qemu_pid\" ]; then kill $$qemu_pid >/dev/null 2>&1 || true; wait $$qemu_pid >/dev/null 2>&1 || true; fi" EXIT HUP INT TERM; \
+		tail -n +1 -F "$(DEMO_SCP_LOG)" & \
+		tail_pid=$$!; \
+		"$(QEMU_SYSTEM_ARM)" \
+			-M mps2-an500 \
+			-cpu cortex-m7 \
+			-display none \
+			-monitor none \
+			-serial file:"$(DEMO_SCP_LOG)" \
+			-semihosting \
+			-kernel "$(SCP_IMAGE)" & \
+		qemu_pid=$$!; \
+		wait $$qemu_pid; \
+		status=$$?; \
+		kill $$tail_pid >/dev/null 2>&1 || true; \
+		wait $$tail_pid >/dev/null 2>&1 || true; \
+		printf "\n[SCP] QEMU exited with status %s\n" "$$status" >> "$(DEMO_SCP_LOG)"; \
+		exit $$status' & \
+	sleep 1; \
+	"$(XTERM)" $(XTERM_ARGS) -T "$(XTERM_AP_TITLE)" -e /bin/bash -lc '\
+		set -m; \
+		trap "if [ -n \"$$qemu_pid\" ]; then kill $$qemu_pid >/dev/null 2>&1 || true; wait $$qemu_pid >/dev/null 2>&1 || true; fi" EXIT HUP INT TERM; \
+		tail -n +1 -F "$(DEMO_AP_LOG)" & \
+		tail_pid=$$!; \
+		"$(QEMU_SYSTEM_AARCH64)" \
+			-machine virt,secure=on \
+			-cpu cortex-a53 \
+			-m $(QEMU_AARCH64_MEMORY) \
+			-display none \
+			-monitor none \
+			-serial file:"$(DEMO_AP_LOG)" \
+			-bios "$(TFA_FLASH_IMAGE)" & \
+		qemu_pid=$$!; \
+		wait $$qemu_pid; \
+		status=$$?; \
+		kill $$tail_pid >/dev/null 2>&1 || true; \
+		wait $$tail_pid >/dev/null 2>&1 || true; \
+		printf "\n[AP] QEMU exited with status %s\n" "$$status" >> "$(DEMO_AP_LOG)"; \
+		exit $$status'
 
 scp-clean:
 	$(RM) -r $(SCP_BUILD_DIR)
@@ -180,6 +254,7 @@ help:
 	@echo "  run-ap     Run TF-A BL31 and the AP-side BL33 payload in QEMU"
 	@echo "  run-ap-baremetal  Run the AP-side baremetal image directly in QEMU"
 	@echo "  run-scp    Run the SCP firmware in QEMU and print live UART output"
+	@echo "  run-demo   Run both AP-side and SCP-side QEMU instances together"
 	@echo "  ap-clean   Remove AP build directory"
 	@echo "  tfa-clean  Remove TF-A build output"
 	@echo "  scp-clean  Remove SCP build directory"
@@ -192,14 +267,23 @@ help:
 	@echo "  AP_OBJCOPY=$(AP_OBJCOPY)"
 	@echo "  AP_IMAGE=$(AP_IMAGE)"
 	@echo "  AP_BINARY=$(AP_BINARY)"
-	@echo "  AP_UART_FIFO=$(AP_UART_FIFO)"
+	@echo "  AP_LOG=$(AP_LOG)"
 	@echo "  AP_LOAD_ADDR=$(AP_LOAD_ADDR)"
+	@echo "  XTERM=$(XTERM)"
+	@echo "  XTERM_ARGS=$(XTERM_ARGS)"
+	@echo "  XTERM_SCP_TITLE=$(XTERM_SCP_TITLE)"
+	@echo "  XTERM_AP_TITLE=$(XTERM_AP_TITLE)"
+	@echo "  XTERM_AP_BAREMETAL_TITLE=$(XTERM_AP_BAREMETAL_TITLE)"
 	@echo "  SCP_PRODUCT=$(SCP_PRODUCT)"
 	@echo "  SCP_FIRMWARE=$(SCP_FIRMWARE)"
 	@echo "  SCP_BUILD_DIR=$(SCP_BUILD_DIR)"
 	@echo "  SCP_BUILD_SYSTEM=$(SCP_BUILD_SYSTEM)"
 	@echo "  SCP_TOOLCHAIN=$(SCP_TOOLCHAIN)"
 	@echo "  SCP_IMAGE=$(SCP_IMAGE)"
+	@echo "  SCP_LOG=$(SCP_LOG)"
+	@echo "  DEMO_BUILD_DIR=$(DEMO_BUILD_DIR)"
+	@echo "  DEMO_SCP_LOG=$(DEMO_SCP_LOG)"
+	@echo "  DEMO_AP_LOG=$(DEMO_AP_LOG)"
 	@echo "  TFA_PLAT=$(TFA_PLAT)"
 	@echo "  TFA_BUILD_TYPE=$(TFA_BUILD_TYPE)"
 	@echo "  TFA_BUILD_DIR=$(TFA_BUILD_DIR)"
@@ -207,10 +291,11 @@ help:
 	@echo "  TFA_FIP_IMAGE=$(TFA_FIP_IMAGE)"
 	@echo "  TFA_FLASH_IMAGE=$(TFA_FLASH_IMAGE)"
 	@echo "  TFA_LOG_LEVEL=$(TFA_LOG_LEVEL)"
-	@echo "  TFA_UART_FIFO=$(TFA_UART_FIFO)"
+	@echo "  TFA_LOG=$(TFA_LOG)"
+	@echo "  BRIDGE_SHM_PATH=$(BRIDGE_SHM_PATH)"
+	@echo "  BRIDGE_AP_SOCK=$(BRIDGE_AP_SOCK)"
+	@echo "  BRIDGE_SCP_SOCK=$(BRIDGE_SCP_SOCK)"
 	@echo "  QEMU_BUILD_DIR=$(QEMU_BUILD_DIR)"
 	@echo "  QEMU_SYSTEM_ARM=$(QEMU_SYSTEM_ARM)"
 	@echo "  QEMU_SYSTEM_AARCH64=$(QEMU_SYSTEM_AARCH64)"
 	@echo "  QEMU_AARCH64_MEMORY=$(QEMU_AARCH64_MEMORY)"
-	@echo "  QEMU_TIMEOUT=$(QEMU_TIMEOUT)"
-	@echo "  QEMU_UART_FIFO=$(QEMU_UART_FIFO)"
