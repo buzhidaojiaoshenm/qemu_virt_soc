@@ -1,156 +1,319 @@
 # QEMU Virtual SoC
 
-This repository hosts a virtual SoC experiment that runs the application
-processor side and the system control processor side in two cooperating QEMU
-instances.
+This repository integrates a split AP/SCP virtual platform built from two
+cooperating QEMU processes:
 
-The top-level repository tracks the integration code and documentation. The
-upstream QEMU and SCP-firmware source trees are managed as Git submodules.
+- AP side: `qemu-system-aarch64`, `virt` machine, TF-A + AArch64 baremetal BL33
+- SCP side: `qemu-system-arm`, custom `qemu-scp-m7` machine, `SCP-firmware`
+  product `qemu_virt_m7`
+
+The current implementation already supports:
+
+- AP/SCP boot in separate QEMU processes
+- SCMI BASE traffic from TF-A to SCP-firmware
+- shared CMN configuration-space model visible from both AP and SCP
+- SCP-side `cmn-cyprus` initialization against the emulated CMN topology
+- AP-side dump of the configured CMN register space
 
 ## Architecture
 
 ```text
-+------------------------+        socket/eventfd         +------------------------+
-| QEMU #1 (AP side)      | <---------------------------> | QEMU #2 (SCP side)     |
-| qemu-system-aarch64    |                               | qemu-system-arm        |
-| A-profile board        |        shared memory         | mps2-an500             |
-| TF-A / baremetal / OS  | <---------------------------> | SCP-firmware           |
 +------------------------+                               +------------------------+
-           |                                                         |
-           | custom sysbus device                                    | custom sysbus device
-           | "scmi-mailbox-bridge"                                   | "scmi-mailbox-bridge"
-           +---------------- MMIO regs + IRQ -------------------------+
+| QEMU #1 (AP side)      |                               | QEMU #2 (SCP side)     |
+| qemu-system-aarch64    |                               | qemu-system-arm        |
+| machine: virt          |                               | machine: qemu-scp-m7   |
+| TF-A + BL33 baremetal  |                               | SCP-firmware           |
++-----------+------------+                               +------------+-----------+
+            |                                                             |
+            | shared CMN config aperture                                  |
+            +--------------------------+  +-------------------------------+
+                                       |  |
+AP CMN base:  0x140000000              |  | SCP CMN base: 0x60000000
+size:         1GB                      |  | size:         1GB
+                                       v  v
+                             +----------------------+
+                             | arm-cmn-cfg          |
+                             | shared RAM-backed    |
+                             | config-space model   |
+                             +----------------------+
+
++------------------------+        host socket + shm        +------------------------+
+| AP scmi-mailbox-bridge | <-----------------------------> | SCP scmi-mailbox-bridge|
++------------------------+                                 +------------------------+
+            |                                                             |
+            | MMIO regs + shared mailbox                                  |
+            |                                                             |
+AP side TF-A SCMI client                                      SCP side transport/scmi server
 ```
-
-The model is split into two processes:
-
-- `QEMU #1` emulates the AP side with `qemu-system-aarch64`.
-- `QEMU #2` emulates the SCP side with `qemu-system-arm` and the `mps2-an500`
-  machine.
-- Both QEMU instances contain a custom sysbus device named
-  `scmi-mailbox-bridge`.
-- The bridge exposes MMIO registers and IRQs to the guest firmware/software.
-- The two bridge devices exchange mailbox state through host-side
-  socket/eventfd signaling and shared memory.
-- The AP side can run TF-A, baremetal software, or an OS.
-- The SCP side runs SCP-firmware.
-
-The goal is to prototype an SCMI mailbox path where the AP and SCP run in
-separate QEMU processes while still behaving like two processors connected by
-SoC-level mailbox hardware.
 
 ## Repository Layout
 
 ```text
 .
-|-- qemu/           # QEMU source tree, tracked as a submodule
-|-- SCP-firmware/   # Arm SCP-firmware source tree, tracked as a submodule
-|-- .gitmodules     # Submodule URL and path configuration
-`-- README.md       # Project overview
+|-- ap/                            # AP-side baremetal BL33 payload
+|-- qemu/                          # QEMU fork
+|-- SCP-firmware/                  # SCP-firmware fork
+|-- tf-a/                          # TF-A fork
+|-- toolchains/arm-none-eabi-gcc/  # project-local Arm GNU toolchain
+|-- Makefile                       # top-level build/run entry
+|-- .gitmodules
+`-- README.md
 ```
 
-## Clone
+## Submodules
 
-Clone the repository with submodules:
+Current submodules:
+
+```text
+qemu                           -> git@github.com:buzhidaojiaoshenm/qemu.git
+SCP-firmware                   -> git@github.com:buzhidaojiaoshenm/SCP-firmware.git
+tf-a                           -> git@github.com:buzhidaojiaoshenm/arm-trusted-firmware.git
+toolchains/arm-none-eabi-gcc   -> git@github.com:buzhidaojiaoshenm/arm-none-eabi-gcc.git
+```
+
+Clone with submodules:
 
 ```bash
 git clone --recurse-submodules <repo-url>
 cd qemu_virt_soc
 ```
 
-If the repository was cloned without submodules, initialize them afterwards:
+If needed:
 
 ```bash
 git submodule update --init --recursive
 ```
 
-## Submodules
+## Current AP Side
 
-Current submodule configuration:
+- QEMU machine: `virt`
+- CPU: `cortex-a53`
+- TF-A platform: `qemu`
+- BL33 payload: `ap/hello_aarch64`
+- BL33 load address: `0x60000000`
+- UART: PL011 at `0x09000000`
+
+Current BL33 behavior:
+
+- prints boot message
+- reads CMN discovery registers
+- dumps all non-zero 64-bit registers in the seeded/configured CMN space
+
+## Current SCP Side
+
+- QEMU machine: `qemu-scp-m7`
+- CPU: `cortex-m7`
+- SCP-firmware product: `qemu_virt_m7`
+
+### SCP Memory Map
 
 ```text
-qemu:
-  path: qemu
-  url:  git@github.com:buzhidaojiaoshenm/qemu.git
-
-SCP-firmware:
-  path: SCP-firmware
-  url:  git@github.com:buzhidaojiaoshenm/SCP-firmware.git
+ITCM   0x00000000 - 0x000bffff
+DTCM   0x20000000 - 0x2007ffff
 ```
 
-The `qemu_virt_m7` SCP-firmware product expects the GNU Arm bare-metal
-toolchain to be available under:
+### SCP Peripheral Map
 
 ```text
-toolchains/arm-none-eabi-gcc/
-`-- bin/
-    |-- arm-none-eabi-gcc
-    |-- arm-none-eabi-g++
-    `-- arm-none-eabi-objcopy
+GTIMER CNTCTL / control   0x44000000 - 0x44000fff
+GTIMER frame              0x44001000 - 0x44001fff
+PL011 UART                0x44002000 - 0x44004fff
+SP805 watchdog            0x44006000 - 0x44006fff
+
+MHU NS recv / bridge regs 0x45000000 - 0x4500ffff
+MHU NS send / mailbox shm 0x45010000 - 0x4501ffff
+MHU S recv  reserved      0x45020000 - 0x4502ffff
+MHU S send  reserved      0x45030000 - 0x4503ffff
+
+CMN config aperture       0x60000000 - 0x9fffffff
 ```
 
-If the toolchain is managed as a submodule, add it at that exact path:
+### SCP-firmware Modules
 
-```bash
-git submodule add git@github.com:buzhidaojiaoshenm/arm-none-eabi-gcc.git toolchains/arm-none-eabi-gcc
-git commit -m "Add project-local Arm GNU toolchain submodule"
+`qemu_virt_m7` currently enables:
+
+- `pl011`
+- `clock`
+- `gtimer`
+- `sp805`
+- `qemu-sysinfo`
+- `system-info`
+- `qemu-bridge`
+- `timer`
+- `transport`
+- `scmi`
+- `cmn-cyprus`
+
+Key points:
+
+- PL011 is used as the SCP console backend
+- GTimer provides the framework timestamp source
+- `qemu-bridge` is the transport driver below `transport`
+- `scmi` serves TF-A SCMI requests over the shared mailbox
+- `cmn-cyprus` initializes against the emulated CMN configuration space
+
+## CMN Model
+
+The repository contains a shared QEMU device:
+
+- device type: `arm-cmn-cfg`
+- file: `qemu/hw/misc/arm-cmn-cfg.c`
+
+Current properties:
+
+- one shared 1GB configuration aperture
+- AP view base: `0x140000000`
+- SCP view base: `0x60000000`
+- shared host backing file:
+  - `/tmp/qemu_virt_soc.arm_cmn_cfg.shm`
+
+Current scope:
+
+- only configuration-space topology and register storage are modeled
+- mesh data is seeded to match the current Cyprus-like 3x3 topology used by
+  `cmn-cyprus`
+- functional CMN datapath behavior is not implemented
+
+## SCMI Path
+
+The SCMI path currently exercised is:
+
+```text
+TF-A BL31
+-> AP-side scmi-mailbox-bridge
+-> host socket/shared-memory bridge
+-> SCP-side qemu-bridge
+-> transport
+-> scmi
 ```
 
-The top-level repository records the exact commit checked out for each
-submodule. When changing QEMU or SCP-firmware, commit the changes inside the
-submodule first, then commit the updated submodule pointer in the top-level
-repository.
+Verified today:
+
+- TF-A SCMI BASE requests reach SCP-firmware
+- SCP-firmware logs received BASE messages
+- TF-A receives valid SCMI BASE responses
 
 ## Build
 
-The exact build commands depend on the target boards, firmware payloads, and
-local toolchain paths. At a high level:
+Top-level entrypoints are in [Makefile](/mnt/linux-work/qemu_virt_soc/Makefile).
 
-1. Build QEMU from `qemu/` with the AArch64 and Arm system targets enabled.
-2. Build SCP-firmware from `SCP-firmware/` for the SCP-side target.
-3. Build or provide the AP-side payload, such as TF-A, a baremetal image, or an
-   OS image.
-4. Launch the AP-side and SCP-side QEMU instances with matching
-   `scmi-mailbox-bridge` configuration so they connect to the same host-side
-   socket/eventfd and shared-memory channel.
-
-Example placeholders:
+### Build QEMU
 
 ```bash
-# Build QEMU.
 cd qemu
-# TODO: add project-specific QEMU configure/build command.
-
-# Build SCP-firmware.
-cd ../SCP-firmware
-# TODO: add project-specific SCP-firmware build command.
+mkdir -p build
+cd build
+../configure --target-list=aarch64-softmmu,arm-softmmu
+ninja qemu-system-aarch64 qemu-system-arm
 ```
+
+### Build AP baremetal
+
+```bash
+make ap
+```
+
+### Build TF-A
+
+```bash
+make tfa
+```
+
+### Build SCP-firmware
+
+```bash
+make scp
+```
+
+Notes:
+
+- top-level SCP build defaults to `SCP_LOG_LEVEL=INFO`
+- `qemu_virt_m7` disables framework log buffering so dense `cmn-cyprus` logs
+  are not folded into `[FWK] ... and N more messages...`
 
 ## Run
 
-The runtime setup requires two QEMU processes:
+### Run SCP only
 
 ```bash
-# Terminal 1: AP side
-# TODO: qemu/build/qemu-system-aarch64 \
-#   -machine <ap-board> \
-#   -device scmi-mailbox-bridge,...
-
-# Terminal 2: SCP side
-# TODO: qemu/build/qemu-system-arm \
-#   -machine mps2-an500 \
-#   -device scmi-mailbox-bridge,...
+make run-scp
 ```
 
-Both sides must agree on the bridge transport endpoints and shared-memory
-layout. The SCP side should boot the SCP-firmware image, while the AP side
-should boot the firmware or OS payload that uses the SCMI mailbox.
+### Run AP baremetal directly
+
+```bash
+make run-ap-baremetal
+```
+
+### Run AP through TF-A
+
+```bash
+make run-ap
+```
+
+### Run the integrated AP/SCP demo
+
+```bash
+make run-demo
+```
+
+The run targets open `xterm` windows and stream per-side logs from files:
+
+- SCP log:
+  - `build/scp/qemu_virt_m7/qemu.log`
+- AP TF-A log:
+  - `build/ap/hello_aarch64/tf_a.log`
+- demo logs:
+  - `build/demo/scp.log`
+  - `build/demo/ap.log`
+
+## Expected Demo Output
+
+### SCP side
+
+Typical SCP-side output includes:
+
+```text
+[CMN_CYPRUS] Configuring CMN...
+[CMN_CYPRUS] CMN Discovery complete
+[CMN_CYPRUS] HN-F SAM setup complete
+[CMN_CYPRUS] RNSAM setup complete
+[FWK] Module initialization complete!
+[SCMI RX] AP: type=0 proto=0x10 msg=0x0 token=0
+```
+
+### AP side
+
+Typical AP-side output includes:
+
+```text
+INFO:    QEMU SCMI: BASE version 0x20000
+INFO:    QEMU SCMI: protocols=0 agents=1
+ap_hello_aarch64: booting on QEMU virt
+ap_hello_aarch64: dumping non-zero CMN registers
+ap_hello_aarch64: CMN[0x0000000000000000] = 0x0000000000000002
+```
+
+At the moment, AP dumps the non-zero CMN registers after SCP has already
+configured the CMN model.
 
 ## Development Notes
 
-- Keep QEMU-specific changes inside the `qemu/` submodule.
-- Keep SCP-firmware-specific changes inside the `SCP-firmware/` submodule.
-- Keep integration notes, scripts, and top-level documentation in this
-  repository.
-- After updating a submodule commit, run `git status` at the repository root to
-  confirm the top-level submodule pointer changed.
+- QEMU changes live in the `qemu/` submodule
+- SCP firmware changes live in the `SCP-firmware/` submodule
+- TF-A changes live in the `tf-a/` submodule
+- top-level integration, build/run flow, and documentation live in this repo
+
+When changing submodules:
+
+1. commit inside the submodule
+2. push the submodule
+3. commit the updated submodule pointer in the top-level repository
+
+## Current Limitations
+
+- CMN is a configuration-space model only; no coherent datapath behavior yet
+- secure MHU windows are reserved but not fully modeled as real Arm MHU IP
+- AP-side software is still a minimal baremetal dump client, not a full OS
+- SCP-side SCMI implementation currently validates the BASE path; more
+  protocols can be added later
