@@ -9,6 +9,7 @@ SCP_BUILD_DIR ?= $(CURDIR)/build/scp/$(SCP_PRODUCT)
 AP_BUILD_DIR ?= $(CURDIR)/build/ap/hello_aarch64
 SCP_BUILD_SYSTEM ?= Make
 SCP_TOOLCHAIN ?= GNU
+SCP_LOG_LEVEL ?= INFO
 SCP_IMAGE ?= $(SCP_BUILD_DIR)/firmware-$(SCP_FIRMWARE)/bin/$(SCP_PRODUCT).elf
 AP_CROSS_COMPILE ?= aarch64-linux-gnu-
 AP_CC ?= $(AP_CROSS_COMPILE)gcc
@@ -76,6 +77,7 @@ scp: toolchain-check
 		PRODUCT=$(SCP_PRODUCT) \
 		BUILD_SYSTEM=$(SCP_BUILD_SYSTEM) \
 		TOOLCHAIN=$(SCP_TOOLCHAIN) \
+		LOG_LEVEL=$(SCP_LOG_LEVEL) \
 		DIRECT_BUILD=y \
 		BUILD_PATH=$(SCP_BUILD_DIR) \
 		firmware-$(SCP_FIRMWARE)
@@ -258,6 +260,7 @@ help:
 	@echo "Variables:"
 	@echo "  TFA_DIR=$(TFA_DIR)"
 	@echo "  AP_DIR=$(AP_DIR)"
+	@echo "  SCP_LOG_LEVEL=$(SCP_LOG_LEVEL)"
 	@echo "  AP_BUILD_DIR=$(AP_BUILD_DIR)"
 	@echo "  AP_CC=$(AP_CC)"
 	@echo "  AP_OBJCOPY=$(AP_OBJCOPY)"
