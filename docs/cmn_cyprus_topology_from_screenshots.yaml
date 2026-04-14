@@ -1,0 +1,461 @@
+# Draft CMN topology/config extracted manually from screenshots.
+#
+# Status:
+# - This file is intentionally review-first, not source-of-truth.
+# - Fields marked with TODO/UNCERTAIN come from ambiguous screenshot OCR or
+#   partially occluded lines and must be checked manually before being used to
+#   drive the QEMU CMN model.
+# - The structure mirrors the screenshot layout rather than the current QEMU
+#   implementation details.
+
+meta:
+  source: screenshot_manual_transcription
+  status: draft_for_review
+  notes:
+    - XP/node ids shown here are copied from screenshots where visible.
+    - Some address_block entries are inferred from partially visible lines.
+    - Empty address_block lists are preserved where the screenshot showed none.
+    - Several devices appear to expose multiple address blocks for the same id.
+
+cmn:
+  name: cyprus
+  mesh:
+    x: 3
+    y: 3
+
+nodes:
+  - name: MXP
+    position: { x: 0, y: 0 }
+    id: "00"
+    address_block:
+      - { address: "0x020000", name: MXP }
+    clock_domain: 0
+    dn_domain: 0
+    dtc_domain: 0
+    mesh:
+      east:  { next: "10", ncs: [] }
+      north: { next: "01", ncs: [] }
+    port:
+      device:
+        p0:
+          name: SBSX
+          id: 0
+          a4s: 0
+          axu: 0
+          dcs: 0
+          address_block:
+            - { address: "0x100000", id: 0, name: SBSX }
+        p1:
+          name: HND
+          id: 2
+          a4s: 0
+          axu: 0
+          dcs: 0
+          tieoff:
+            DTC_DELAY_COUNT: "8'd5"
+            DTC1_DELAY_COUNT: "8'd0"
+            DTC2_DELAY_COUNT: "8'd0"
+            DTC3_DELAY_COUNT: "8'd0"
+            DTC_NUM_DTM: "6'd9"
+            DIE_NQM_PMU: "6'd9"
+          address_block:
+            - { address: "0x000000", id: 2, name: CFG }
+            - { address: "0x380000", id: 2, name: DT }
+            - { address: "0x280000", id: 2, name: DN }
+            - { address: "0x180000", id: 2, name: HNI }
+            - { address: "0x002000", id: 2, name: APB }
+        p2:
+          name: RNI
+          id: 4
+          a4s: 0
+          axu: 0
+          dcs: 0
+          address_block:
+            - { address: "0x210000", id: 4, name: RNSAM }
+            - { address: "0x110000", id: 4, name: RNI }
+        p3:
+          name: CCGPCI
+          id: 6
+          a4s: 0
+          axu: 0
+          dcs: 0
+          address_block:
+            - { address: "0x390000", id: 6, name: CCG_RA }
+            - { address: "0x290000", id: 6, name: CCLA }
+            - { address: "0x090000", id: 6, name: RNSAM }
+            - { address: "0x190000", id: 6, name: CCG_HA }
+            - { address: "0x1d0000", id: 7, name: RNI }
+            - { address: "0x2d0000", id: 7, name: RNI_RNSAM }
+
+  - name: MXP
+    position: { x: 0, y: 1 }
+    id: "01"
+    address_block:
+      - { address: "0x420000", name: MXP }
+      - { address: "0x4a0000", id: 8, name: RNSAM, external: true }
+    clock_domain: 0
+    dn_domain: 0
+    dtc_domain: 0
+    mesh:
+      east:  { next: "11", ncs: [] }
+      north: { next: "02", ncs: [] }
+      south: { next: "00", ncs: [] }
+    port:
+      device:
+        p0:
+          cal:
+            p0: { name: calndp20_0 }
+            p1: { name: calndp20_0 }
+          devices:
+            - { name: RNFEESAM, id: 8, a4s: 1, axu: 1, dcs: 0, address_block: [] }
+            - { name: RNFEESAM, id: 9, a4s: 1, axu: 1, dcs: 0, address_block: [] }
+        p1:
+          devices:
+            - name: HNS
+              id: 10
+              a4s: 0
+              axu: 0
+              dcs: 0
+              address_block:
+                - { address: "0x780000", id: 10, name: HNS }
+                - { address: "0x580000", id: 10, name: HNS_MPAM_S }
+                - { address: "0x680000", id: 10, name: HNS_MPAM_NS }
+            - name: HNS
+              id: 11
+              a4s: 0
+              axu: 0
+              dcs: 0
+              address_block:
+                - { address: "0x7c0000", id: 11, name: HNS }
+                - { address: "0x5c0000", id: 11, name: HNS_MPAM_S }
+                - { address: "0x6c0000", id: 11, name: HNS_MPAM_NS }
+        p2:
+          name: CCG_RA
+          id: 12
+          a4s: 0
+          axu: 0
+          dcs: 0
+          address_block:
+            - { address: "0x710000", id: 12, name: CCG_RA }
+            - { address: "0x610000", id: 12, name: CCLA }
+            - { address: "0x410000", id: 12, name: RNSAM }
+            - { address: "0x510000", id: 12, name: CCG_HA }
+            - { address: "0x550000", id: 13, name: RNI }
+            - { address: "0x650000", id: 13, name: RNI_RNSAM }
+
+  - name: MXP
+    position: { x: 0, y: 2 }
+    id: "02"
+    address_block:
+      - { address: "0x820000", name: MXP }
+    clock_domain: 0
+    dn_domain: 0
+    dtc_domain: 0
+    mesh:
+      east:  { next: "12", ncs: [] }
+      south: { next: "01", ncs: [] }
+    port:
+      device:
+        p0:
+          devices:
+            - { name: SNFE, id: 16, a4s: 0, axu: 1, dcs: 0, address_block: [] }
+            - { name: SNFE, id: 17, a4s: 0, axu: 1, dcs: 0, address_block: [] }
+        p1:
+          devices:
+            - { name: SBSX, id: 18, a4s: 0, axu: 0, dcs: 0, address_block: [ { address: "0x980000", id: 18, name: SBSX } ] }
+            - { name: SBSX, id: 19, a4s: 0, axu: 0, dcs: 0, address_block: [ { address: "0x9c0000", id: 19, name: SBSX } ] }
+        p2:
+          devices:
+            - { name: HNI, id: 20, a4s: 0, axu: 0, dcs: 0, address_block: [ { address: "0x0b10000", id: 20, name: HNI } ] }
+            - { name: HNI, id: 21, a4s: 0, axu: 0, dcs: 0, address_block: [ { address: "0x0b50000", id: 21, name: HNI } ] }
+        p3:
+          devices:
+            - name: RNI
+              id: 22
+              a4s: 3
+              axu: 0
+              dcs: 0
+              address_block:
+                - { address: "0x0a90000", id: 22, name: RNSAM }
+                - { address: "0x0990000", id: 22, name: RNI}
+
+  - name: MXP
+    position: { x: 1, y: 0 }
+    id: "10"
+    address_block:
+      - { address: "0x1020000", name: MXP }
+    clock_domain: 0
+    dn_domain: 0
+    dtc_domain: 0
+    mesh:
+      east:  { next: "20", ncs: [sync] }
+      north: { next: "11", ncs: [] }
+      west:  { next: "00", ncs: [] }
+    port:
+      device:
+        p0:
+          devices:
+            - name: RNI
+              id: 32
+              a4s: 0
+              axu: 0
+              dcs: 0
+              address_block:
+                - { address: "0x1200000", id: 32, name: RNSAM }
+                - { address: "0x1100000", id: 32, name: RNI }
+        p1:
+          devices:
+            - name: HNP
+              id: 34
+              a4s: 0
+              axu: 0
+              dcs: 0
+              address_block:
+                - { address: "0x1380000", id: 34, name: HNI}
+        p2:
+          devices:
+            - name: CCGPCI
+              id: 36
+              a4s: 0
+              axu: 0
+              dcs: 0
+              address_block:
+                - { address: "0x1310000", id: 36, name: CCG_RA }
+                - { address: "0x1210000", id: 36, name: CCLA }
+                - { address: "0x1010000", id: 36, name: RNSAM }
+                - { address: "0x1110000", id: 36, name: CCG_HA }
+                - { address: "0x1150000", id: 37, name: RNI }
+                - { address: "0x1250000", id: 37, name: RNI_RNSAM }
+
+  - name: MXP
+    position: { x: 1, y: 1 }
+    id: "11"
+    address_block:
+      - { address: "0x1420000", name: MXP }
+      - { address: "0x14a0000", id: 40, name: RNSAM, external: true }
+    clock_domain: 0
+    dn_domain: 0
+    dtc_domain: 0
+    mesh:
+      east:  { next: "21", ncs: [sync] }
+      north: { next: "12", ncs: [] }
+      south: { next: "10", ncs: [] }
+      west:  { next: "01", ncs: [] }
+    port:
+      device:
+        p0:
+          devices:
+            - { name: RNFEESAM, id: 40, a4s: 1, axu: 1, dcs: 0, address_block: [] }
+            - { name: RNFEESAM, id: 41, a4s: 1, axu: 1, dcs: 0, address_block: [] }
+        p1:
+          devices:
+            - name: HNS
+              id: 44
+              a4s: 0
+              axu: 0
+              dcs: 0
+              address_block:
+                - { address: "0x1710000", id: 44, name: HNS }
+                - { address: "0x1510000", id: 44, name: HNS_MPAM_S }
+                - { address: "0x1610000", id: 44, name: HNS_MPAM_NS }
+            - name: HNS
+              id: 45
+              a4s: 0
+              axu: 0
+              dcs: 0
+              address_block:
+                - { address: "0x1750000", id: 45, name: HNS }
+                - { address: "0x1550000", id: 45, name: HNS_MPAM_S }
+                - { address: "0x1650000", id: 45, name: HNS_MPAM_NS }
+
+  - name: MXP
+    position: { x: 1, y: 2 }
+    id: "12"
+    address_block:
+      - { address: "0x1820000", name: MXP }
+    clock_domain: 0
+    dn_domain: 0
+    dtc_domain: 0
+    mesh:
+      east:  { next: "22", ncs: [sync] }
+      south: { next: "11", ncs: [] }
+      west:  { next: "02", ncs: [] }
+    port:
+      device:
+        p0:
+          devices:
+            - { name: SNFE, id: 48, a4s: 0, axu: 1, dcs: 0, address_block: [] }
+            - { name: SNFE, id: 49, a4s: 0, axu: 1, dcs: 0, address_block: [] }
+        p1:
+          devices:
+            - { name: SBSX, id: 50, a4s: 0, axu: 0, dcs: 0, address_block: [ { address: "0x1980000", id: 50, name: SBSX } ] }
+            - { name: SBSX, id: 51, a4s: 0, axu: 0, dcs: 0, address_block: [ { address: "0x19c0000", id: 51, name: SBSX } ] }
+        p2:
+          devices:
+            - name: RNI
+              id: 52
+              a4s: 0
+              axu: 0
+              dcs: 0
+              address_block:
+                - { address: "0x1a10000", id: 52, name: RNSAM }
+                - { address: "0x1910000", id: 52, name: RNI }
+
+  - name: MXP
+    position: { x: 2, y: 0 }
+    id: "20"
+    address_block:
+      - { address: "0x2020000", name: MXP }
+      - { address: "0x20a0000", id: 64, name: RNSAM, external: true }
+    clock_domain: 0
+    dn_domain: 0
+    dtc_domain: 0
+    mesh:
+      north: { next: "21", ncs: [] }
+      west:  { next: "10", ncs: [sync] }
+    port:
+      device:
+        p0:
+          devices:
+            - { name: RNFEESAM, id: 64, a4s: 1, axu: 1, dcs: 0, address_block: [] }
+            - { name: RNFEESAM, id: 65, a4s: 1, axu: 1, dcs: 0, address_block: [] }
+        p1:
+          devices:
+            - name: HNS
+              id: 66
+              a4s: 0
+              axu: 0
+              dcs: 0
+              address_block:
+                - { address: "0x2300000", id: 66, name: HNS }
+                - { address: "0x2100000", id: 66, name: HNS_MPAM_S }
+                - { address: "0x2200000", id: 66, name: HNS_MPAM_NS }
+            - name: HNS
+              id: 67
+              a4s: 0
+              axu: 0
+              dcs: 0
+              address_block:
+                - { address: "0x23c0000", id: 67, name: HNS}
+                - { address: "0x21c0000", id: 67, name: HNS_MPAM_S}
+                - { address: "0x22c0000", id: 67, name: HNS_MPAM_NS}
+        p2:
+          devices:
+            - name: HNP
+              id: 68
+              a4s: 0
+              axu: 0
+              dcs: 0
+              tieoff:
+                DTC_NUM_DTM: "6'd9"
+                DTC_NUM_PMU: "6'd9"
+              address_block:
+                - { address: "0x2310000", id: 68, name: HNI}
+        p3:
+          devices:
+            - name: CCGPCI
+              id: 70
+              a4s: 0
+              axu: 0
+              dcs: 0
+              address_block:
+                - { address: "0x2390000", id: 70, name: CCG_RA }
+                - { address: "0x2290000", id: 70, name: CCLA }
+                - { address: "0x2090000", id: 70, name: RNSAM }
+                - { address: "0x2190000", id: 70, name: CCG_HA }
+                - { address: "0x21d0000", id: 71, name: RNI }
+                - { address: "0x22d0000", id: 71, name: RNI_RNSAM }
+
+  - name: MXP
+    position: { x: 2, y: 1 }
+    id: "21"
+    address_block:
+      - { address: "0x2420000", name: MXP }
+      - { address: "0x24a0000", id: 72, name: RNSAM, external: true }
+    clock_domain: 0
+    dn_domain: 0
+    dtc_domain: 0
+    mesh:
+      north: { next: "22", ncs: [] }
+      south: { next: "20", ncs: [] }
+      west:  { next: "11", ncs: [sync] }
+    port:
+      device:
+        p0:
+          devices:
+            - { name: RNFEESAM, id: 72, a4s: 1, axu: 1, dcs: 0, address_block: [] }
+            - { name: RNFEESAM, id: 73, a4s: 1, axu: 1, dcs: 0, address_block: [] }
+        p1:
+          devices:
+            - name: HNS
+              id: 74
+              a4s: 0
+              axu: 0
+              dcs: 0
+              address_block:
+                - { address: "0x2780000", id: 74, name: HNS }
+                - { address: "0x2580000", id: 74, name: HNS_MPAM_S }
+                - { address: "0x2680000", id: 74, name: HNS_MPAM_NS }
+            - name: HNS
+              id: 75
+              a4s: 0
+              axu: 0
+              dcs: 0
+              address_block:
+                - { address: "0x27c0000", id: 75, name: HNS }
+                - { address: "0x25c0000", id: 75, name: HNS_MPAM_S }
+                - { address: "0x26c0000", id: 75, name: HNS_MPAM_NS }
+        p2:
+          devices:
+            - name: RNI
+              id: 76
+              a4s: 0
+              axu: 0
+              dcs: 0
+              address_block:
+                - { address: "0x2610000", id: 76, name: RNSAM }
+                - { address: "0x2510000", id: 76, name: RNI }
+
+  - name: MXP
+    position: { x: 2, y: 2 }
+    id: "22"
+    address_block:
+      - { address: "0x2820000", name: MXP }
+    clock_domain: 0
+    dn_domain: 0
+    dtc_domain: 0
+    mesh:
+      south: { next: "21", ncs: [] }
+      west:  { next: "12", ncs: [sync] }
+    port:
+      device:
+        p0:
+          devices:
+            - { name: SNFE, id: 80, a4s: 1, axu: 1, dcs: 0, address_block: [] }
+            - { name: SNFE, id: 81, a4s: 1, axu: 1, dcs: 0, address_block: [] }
+        p1:
+          devices:
+            - { name: SBSX, id: 82, a4s: 0, axu: 0, dcs: 0, address_block: [ { address: "0x2980000", id: 82, name: SBSX } ] }
+            - { name: SBSX, id: 83, a4s: 0, axu: 0, dcs: 0, address_block: [ { address: "0x29c0000", id: 83, name: SBSX } ] }
+        p2:
+          devices:
+            - name: RND
+              id: 84
+              a4s: 2
+              axu: 0
+              dcs: 0
+              address_block:
+                - { address: "0x2a10000", id: 84, name: RNSAM }
+                - { address: "0x2910000", id: 84, name: RND }
+        p3:
+          devices:
+            - name: HNP
+              id: 86
+              a4s: 0
+              axu: 0
+              dcs: 0
+              tieoff:
+                DTC_NUM_DTM: "6'd9"
+                DTC_NUM_PMU: "6'd9"
+              address_block:
+                - { address: "0x2b90000", id: 86, name: HNI}
